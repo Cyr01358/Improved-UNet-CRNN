@@ -1,0 +1,130 @@
+from keras.layers import Input, Dense, Reshape, Flatten, Dropout, Concatenate, AveragePooling2D, Add
+from keras.layers import BatchNormalization, Activation, ZeroPadding2D, UpSampling2D,MaxPooling2D,concatenate
+from keras.layers.advanced_activations import LeakyReLU, ReLU
+from keras.layers.convolutional import Conv2D, Deconv2D
+from keras.models import Sequential, Model
+from keras.optimizers import Adam
+import matplotlib.pyplot as plt
+import numpy as np
+import h5py
+from keras.layers import GRU,LSTM,Permute,TimeDistributed,Dense,MaxPooling2D
+import keras
+from keras.callbacks import TensorBoard
+from keras.layers import Cropping3D
+import keras.backend as K
+
+def transition_conv(layer_input, filters):
+    t = BatchNormalization(epsilon=1.001e-5)(layer_input)
+    t = LeakyReLU(alpha=0.2)(t)
+    t = Conv2D(filters, 1)(t)
+    t = AveragePooling2D(2, strides=2)(t)
+    return t
+
+def up_conv(ip,filters):
+    X = UpSampling2D(size=2)(ip)
+    X = Conv2D(filters, 1)(X)
+    X = LeakyReLU(alpha=0.2)(X)
+    X = BatchNormalization(epsilon=1.001e-5)(X)
+    return X
+
+    X_shortcut = X
+    X = Conv2D(64, 1,padding = 'same')(X)
+    X = BatchNormalization(epsilon=1.001e-5)(X)
+    X = LeakyReLU(alpha=0.2)(X)
+    X1 = concatenate([X_shortcut, X])
+    
+    X = Conv2D(64, 3,padding = 'same')(X1)
+    X = BatchNormalization(epsilon=1.001e-5)(X)
+    X = LeakyReLU(alpha=0.2)(X)
+    X2 = concatenate([X1, X])
+    
+    X = Conv2D(128, 3,padding = 'same')(X2)
+    X = BatchNormalization(epsilon=1.001e-5)(X)
+    X = LeakyReLU(alpha=0.2)(X)
+    X3 = concatenate([X2,X])
+    
+    X = Conv2D(128, 1,padding = 'same')(X3)
+    X = BatchNormalization(epsilon=1.001e-5)(X)
+        
+    X4 = concatenate([X3, X])
+    X = LeakyReLU(alpha=0.2)(X4)
+    return X
+
+
+def res_block(X,change= None):
+    X_shortcut = X
+    X = Conv2D(64, 1,padding = 'same')(X)
+    X = BatchNormalization(epsilon=1.001e-5)(X)
+    X = LeakyReLU(alpha=0.2)(X)
+    
+    X = Conv2D(64, 3,padding = 'same')(X)
+    X = BatchNormalization(epsilon=1.001e-5)(X)
+    X = LeakyReLU(alpha=0.2)(X)
+    
+    X = Conv2D(128, 3,padding = 'same')(X)
+    X = BatchNormalization(epsilon=1.001e-5)(X)
+    X = LeakyReLU(alpha=0.2)(X)
+    
+    X = Conv2D(128, 1,padding = 'same')(X)
+    X = BatchNormalization(epsilon=1.001e-5)(X)
+
+    if change:
+        X_shortcut = Conv2D(128, 1,padding = 'same')(X_shortcut)
+        X_shortcut = BatchNormalization(epsilon=1.001e-5)(X_shortcut)
+        
+    X = concatenate([X, X_shortcut])
+    X = LeakyReLU(alpha=0.2)(X)
+    return X
+
+def encoder_block(ip):
+    
+    X = des_block(ip,change= True)
+    print(X.shape)
+    
+    X1 = transition_conv(X, 48)
+    print(X1.shape)
+    
+    X2 = des_block(X1,change= True)
+    print(X2.shape)
+    X3 = transition_conv(X2, 24)
+    print(X3.shape)
+    
+    return X,X1,X2,X3
+
+
+def decoder_block(x,x1,x2,x3):
+    
+    X = res_block(x3,change= True)
+    print(X.shape)
+
+    X = up_conv(X,48)
+    print(X.shape)
+    X = res_block(concatenate([x2,X]),change= True)
+
+
+    print(X.shape)
+
+    X = up_conv(X,32)
+    print(X.shape)
+    X = res_block(concatenate([x,X]),change= True)
+    X = Conv2D(32, 1,padding = 'same')(X)
+(0,0),24),data_format=None)
+
+    return X
+
+def encoder_decoder_network(ip):
+    
+    x,x1,x2,x3 = encoder_block(ip)
+    x = decoder_block(x,x1,x2,x3)
+    model = Model(ip, x, name='encoder_decoder_model')
+    return model
+
+
+model_input = Input((256,256,32))
+model = encoder_decoder_network(model_input)
+t =np.load(r'data.npy')
+model.compile(loss='mean_squared_error',
+              optimizer=keras.optimizers.Adam(lr=1e-5, beta_1=0.90, beta_2=0.90),
+              metrics=['accuracy']) 
+model.fit(t,t,epochs=300, batch_size=4,verbose=1,callbacks=[TensorBoard(log_dir='mytensorboard')])
+model.save('model.h5',model)
