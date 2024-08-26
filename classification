@@ -1,0 +1,70 @@
+from tensorflow.keras.layers import Input, Dense, Reshape, Flatten, Dropout, Concatenate, AveragePooling2D, Add
+from tensorflow.keras.layers import BatchNormalization, Activation, ZeroPadding2D, UpSampling2D,MaxPooling2D
+from tensorflow.keras.layers import LeakyReLU, ReLU
+from tensorflow.python.keras.layers.convolutional import Conv2D, Deconv2D
+from tensorflow.keras.models import Sequential, Model
+from tensorflow.keras.optimizers import Adam
+import matplotlib.pyplot as plt
+import numpy as np
+from tensorflow.keras.layers import GRU,LSTM,Permute,TimeDistributed,Dense,MaxPooling2D
+import os
+import tensorflow.keras
+from tensorflow.keras.callbacks import TensorBoard
+from tensorflow.keras.utils import to_categorical
+from sklearn.model_selection import train_test_split
+import matplotlib.pyplot as plt
+import pandas as pd
+from sklearn.preprocessing import LabelEncoder
+from sklearn import metrics
+from sklearn.metrics import roc_curve,auc
+from sklearn.utils import class_weight
+from tensorflow.keras.layers import Dropout
+
+
+
+model = Sequential([
+        Conv2D(128, 3, padding='same',input_shape=(224, 224, 3)),
+        MaxPooling2D(),
+        Conv2D(256,3, padding='same'),
+        MaxPooling2D(),
+        Permute((3,1,2)),
+        TimeDistributed(tensorflow.keras.layers.Flatten()),
+        TimeDistributed(TimeDistributed(tensorflow.keras.layers.Flatten())),
+        LSTM(128),
+        Dropout(0.5),
+        Dense(2, activation='softmax')
+    
+    ])
+
+model.compile(optimizer=tensorflow.keras.optimizers.Adam(lr=1e-4, beta_1=0.90, beta_2=0.90),
+              loss='categorical_crossentropy',
+              metrics=['accuracy'])
+
+model.summary()
+
+x_train = np.load('data.npy')
+y_train = np.load('label.npy')
+
+tt = np.load('data.npy')
+ll = np.load('label.npy')
+
+sample_weights=[]
+for i in range(0,316):
+     if i<202:
+         sample_weights.append(1)
+     if i>202:
+         sample_weights.append(0.2)
+ sample_weights=np.array(sample_weights)
+
+model.fit(x_train, y_train, batch_size=4, epochs=1, callbacks=[TensorBoard(log_dir='mytensorboard')])
+model.save('1CRNNmodel.h5',model)
+(log_dir='mytensorboard')])
+loss,accuracy=model.evaluate(tt,ll, batch_size=4)
+print('accuracy',accuracy)
+print('loss',loss)
+y=model.predict_classes(tt).astype('int')
+
+predict_test = model.predict(tt)
+print(ll)
+print(y)
+print(predict_test)
